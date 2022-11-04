@@ -1,7 +1,7 @@
 import asyncio
 from sys import argv
 import os
-import shutil
+import aioshutil
 from pathlib import Path
 from transliteration import normalize_name
 
@@ -21,7 +21,7 @@ ARCHIVES_DIR = "archives"
 ignored_folders = [IMAGE_DIR, VIDEO_DIR, DOCUMENTS_DIR, AUDIO_DIR, ARCHIVES_DIR]
 
 
-def move_file(f: str, path: str, folder_name: str) -> None:
+async def move_file(f: str, path: str, folder_name: str) -> None:
     """
     Moves the given file into corresponding folder depending on the file extension.
     :param f: path to the file
@@ -30,13 +30,13 @@ def move_file(f: str, path: str, folder_name: str) -> None:
     """
     new_path = os.path.join(path, folder_name)
     if os.path.exists(new_path):
-        shutil.move(f, os.path.join(new_path, os.path.basename(f)))
+        await aioshutil.move(f, os.path.join(new_path, os.path.basename(f)))
     else:
         os.mkdir(os.path.join(path, folder_name))
-        shutil.move(f, os.path.join(new_path, os.path.basename(f)))
+        await aioshutil.move(f, os.path.join(new_path, os.path.basename(f)))
 
 
-def move_archive(f: str, path: str) -> None:
+async def move_archive(f: str, path: str) -> None:
     """
     Moves the archive to the "archives" directory, unpacks it into the folder and deletes the original archive.
     :param f: path to the archive
@@ -45,14 +45,14 @@ def move_archive(f: str, path: str) -> None:
     new_path = os.path.join(path, ARCHIVES_DIR)
     if os.path.exists(new_path):
         new_addr = os.path.join(new_path, os.path.basename(f))
-        shutil.move(f, new_addr)
-        shutil.unpack_archive(new_addr, os.path.join(new_addr, os.path.splitext(new_addr)[0]))
+        await aioshutil.move(f, new_addr)
+        await aioshutil.unpack_archive(new_addr, os.path.join(new_addr, os.path.splitext(new_addr)[0]))
         os.remove(new_addr)
     else:
         os.mkdir(os.path.join(path, ARCHIVES_DIR))
         new_addr = os.path.join(new_path, os.path.basename(f))
-        shutil.move(f, new_addr)
-        shutil.unpack_archive(new_addr, os.path.join(new_addr, os.path.splitext(new_addr)[0]))
+        await aioshutil.move(f, new_addr)
+        await aioshutil.unpack_archive(new_addr, os.path.join(new_addr, os.path.splitext(new_addr)[0]))
         os.remove(new_addr)
 
 
@@ -87,15 +87,15 @@ async def sort_file(subfolders: asyncio.Queue) -> None:
                 extension = Path(new_path).suffix.lower()
 
                 if extension in IMAGES:
-                    move_file(new_path, path, IMAGE_DIR)
+                    await move_file(new_path, path, IMAGE_DIR)
                 elif extension in VIDEOS:
-                    move_file(new_path, path, VIDEO_DIR)
+                    await move_file(new_path, path, VIDEO_DIR)
                 elif extension in DOCS:
-                    move_file(new_path, path, DOCUMENTS_DIR)
+                    await move_file(new_path, path, DOCUMENTS_DIR)
                 elif extension in AUDIO:
-                    move_file(new_path, path, AUDIO_DIR)
+                    await move_file(new_path, path, AUDIO_DIR)
                 elif extension in ARCHIVES:
-                    move_archive(new_path, path)
+                    await move_archive(new_path, path)
 
         subfolders.task_done()
 
@@ -108,7 +108,7 @@ async def find_subfolders(path: str, subfolders: asyncio.Queue):
     :return: list of paths to the subfolders of the target folder
     """
     for folder in os.walk(path):
-        if folder not in ignored_folders:
+        if folder[0].split(os.path.sep)[-1] not in ignored_folders:
             await subfolders.put(folder[0])
 
 
@@ -122,7 +122,6 @@ async def sort_folder():
 
     path = argv[1]
     subfolders = asyncio.Queue()
-    await subfolders.put(path)
     await find_subfolders(path, subfolders)
 
     sorters = [asyncio.create_task(sort_file(subfolders)) for _ in range(subfolders.qsize())]
