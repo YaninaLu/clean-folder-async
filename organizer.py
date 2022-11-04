@@ -70,33 +70,34 @@ async def sort_file(subfolders: asyncio.Queue) -> None:
     Traverses the given folder, deletes it if empty, sorts the files in it according to their extensions.
     :param subfolders: a queue of folders to process
     """
-    path = await subfolders.get()
+    while True:
+        path = await subfolders.get()
 
-    for filename in os.listdir(path):
-        f = os.path.join(path, filename)
-        if os.path.isdir(f):
-            if filename in ignored_folders:
-                continue
-            if is_empty_dir(f):
-                os.rmdir(f)
-        else:
-            new_path = os.path.join(path, normalize_name(f))
-            if not os.path.exists(new_path):
-                os.rename(f, new_path)
-            extension = Path(new_path).suffix.lower()
+        for filename in os.listdir(path):
+            f = os.path.join(path, filename)
+            if os.path.isdir(f):
+                if filename in ignored_folders:
+                    continue
+                if is_empty_dir(f):
+                    os.rmdir(f)
+            else:
+                new_path = os.path.join(path, normalize_name(f))
+                if not os.path.exists(new_path):
+                    os.rename(f, new_path)
+                extension = Path(new_path).suffix.lower()
 
-            if extension in IMAGES:
-                move_file(new_path, path, IMAGE_DIR)
-            elif extension in VIDEOS:
-                move_file(new_path, path, VIDEO_DIR)
-            elif extension in DOCS:
-                move_file(new_path, path, DOCUMENTS_DIR)
-            elif extension in AUDIO:
-                move_file(new_path, path, AUDIO_DIR)
-            elif extension in ARCHIVES:
-                move_archive(new_path, path)
+                if extension in IMAGES:
+                    move_file(new_path, path, IMAGE_DIR)
+                elif extension in VIDEOS:
+                    move_file(new_path, path, VIDEO_DIR)
+                elif extension in DOCS:
+                    move_file(new_path, path, DOCUMENTS_DIR)
+                elif extension in AUDIO:
+                    move_file(new_path, path, AUDIO_DIR)
+                elif extension in ARCHIVES:
+                    move_archive(new_path, path)
 
-    subfolders.task_done()
+        subfolders.task_done()
 
 
 async def find_subfolders(path: str, subfolders: asyncio.Queue):
